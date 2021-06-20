@@ -25,3 +25,9 @@ staticcheck:
 
 clean:
 	rm -rf bin/*
+
+start-ruby:
+	docker-compose -f docker-compose.ruby.yml up -d
+
+start-php:
+	docker-compose -f docker-compose.php.yml up -d
