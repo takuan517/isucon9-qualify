@@ -249,10 +249,29 @@ class Service
         $createdAt = (int) $request->getParam('created_at', 0);
 
         try {
+            $sql = implode('', [
+                'SELECT',
+                ' items.id as id,',
+                ' items.status as status,',
+                ' items.name as name,',
+                ' items.price as price,',
+                ' items.image_name as image_name,',
+                ' items.created_at as created_at,',
+                ' users.id as seller_id,',
+                ' users.account_name as user_account_name,',
+                ' users.num_sell_items as user_num_sell_items,',
+                ' categories_.id as category_id,',
+                ' categories_.parent_id as category_parent_id,',
+                ' categories__.category_name as category_parent_name,',
+                ' categories_.category_name as category_name',
+                ' FROM `items` left join `users` on items.seller_id=users.id left join `categories` as categories_ on items.category_id=categories_.id left join `categories` as categories__ on categories_.parent_id=categories__.id'
+            ]);
+                #' FROM `items` left join `users` on items.seller_id=users.id left join `categories` on items.category_id=categories.id left join `categories` as categories_ on categories.parent_id=categories_.id'
+                #' (select categories.category_name from categories where categories.id = categories_.parent_id) as category_parent_name,',
             if ($itemId !== "" && $createdAt > 0) {
                 // paging
-                $sth = $this->dbh->prepare('SELECT * FROM `items` WHERE `status` IN (?,?) AND (`created_at` < ? OR (`created_at` <=? AND `id` < ?)) '.
-                    'ORDER BY `created_at` DESC, `id` DESC LIMIT ?');
+                $sth = $this->dbh->prepare("$sql WHERE items.`status` IN (?,?) AND (items.`created_at` < ? OR (items.`created_at` <=? AND items.`id` < ?)) ".
+                    'ORDER BY items.`created_at` DESC, items.`id` DESC LIMIT ?');
                 $r = $sth->execute([
                     self::ITEM_STATUS_ON_SALE,
                     self::ITEM_STATUS_SOLD_OUT,
@@ -266,7 +285,7 @@ class Service
                 }
             } else {
                 // 1st page
-                $sth = $this->dbh->prepare('SELECT * FROM `items` WHERE `status` IN (?,?) ORDER BY `created_at` DESC, `id` DESC LIMIT ?');
+                $sth = $this->dbh->prepare("$sql WHERE items.`status` IN (?,?) ORDER BY items.`created_at` DESC, items.`id` DESC LIMIT ?");
                 $r = $sth->execute([
                     self::ITEM_STATUS_ON_SALE,
                     self::ITEM_STATUS_SOLD_OUT,
@@ -280,19 +299,38 @@ class Service
 
             $itemSimples = [];
             foreach ($items as $item) {
-                $seller = $this->getUserSimpleByID($item['seller_id']);
-                if ($seller === false) {
+                #$seller = $this->getUserSimpleByID($item['seller_id']);
+                if ($item['seller_id'] === NULL) {
                     return $response->withStatus(StatusCode::HTTP_NOT_FOUND)->withJson(['error' => 'seller not found']);
                 }
 
-                $category = $this->getCategoryByID($item['category_id']);
-                if ($category === false) {
+                #$category = $this->getCategoryByID($item['category_id']);
+                if ($item['category_id'] === NULL) {
                     return $response->withStatus(StatusCode::HTTP_NOT_FOUND)->withJson(['error' => 'category not found']);
+                }
+                if ($item['category_parent_id'] !== 0) {
+                    $category = [
+                      'id' => $item['category_id'],
+                      'category_name' => $item['category_name'],
+                      'parent_id' => $item['category_parent_id'],
+                      'parent_category_name' => $item['category_parent_name']
+                    ];
+                }else{
+                    $category = [
+                      'id' => $item['category_id'],
+                      'category_name' => $item['category_name'],
+                      'parent_id' => $item['category_parent_id'],
+                    ];
                 }
                 $itemSimples[] = [
                   'id' => (int) $item['id'],
                   'seller_id' => (int) $item['seller_id'],
-                  'seller' => $seller,
+                  #'seller' => $seller,
+                  'seller' => [
+                      'id' => $item['seller_id'],
+                      'account_name' => $item['user_account_name'],
+                      'num_sell_items' => $item['user_num_sell_items'],
+                  ],
                   'status' => $item['status'],
                   'name' => $item['name'],
                   'price' => (int) $item['price'],
